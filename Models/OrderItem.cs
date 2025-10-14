@@ -8,7 +8,7 @@ namespace OrderManagementApi.Models
         public int Quantity { get; set; }
         public decimal UnitPrice { get; set; }
 
-        // İlişkiler
+        // Relationships
         public Order Order { get; set; }
         public Product Product { get; set; }
     }
