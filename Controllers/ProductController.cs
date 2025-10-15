@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using OrderManagementApi.Data;
+using OrderManagementApi.Interfaces; // IProductRepository'yi kullanmak için
 using OrderManagementApi.Models;
 using OrderManagementApi.DTOs;
+using Microsoft.EntityFrameworkCore; // Hala bazı yerlerde kullanılabilir ama çoğunu repo'ya taşıdık
 
 namespace OrderManagementApi.Controllers
 {
@@ -10,25 +10,27 @@ namespace OrderManagementApi.Controllers
     [ApiController]
     public class ProductController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        // AppDbContext yerine Repository arayüzünü kullanıyoruz!
+        private readonly IProductRepository _productRepository; 
         
-        public ProductController(AppDbContext context)
+        // Constructor'da Repository'i Dependency Injection ile alıyoruz
+        public ProductController(IProductRepository productRepository)
         {
-            _context = context;
+            _productRepository = productRepository;
         }
 
         // GET: api/Product
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
         {
-            return await _context.Products.ToListAsync();
+            return Ok(await _productRepository.GetAllProductsAsync()); // Repository metodu kullanıldı
         }
+        
         // GET: api/Product/5
-        // Get a product by ID
         [HttpGet("{id}")]
         public async Task<ActionResult<Product>> GetProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _productRepository.GetProductByIdAsync(id); // Repository metodu kullanıldı
             if (product == null)
             {
                 return NotFound();
@@ -46,47 +48,50 @@ namespace OrderManagementApi.Controllers
                 Price = productDto.Price,
                 StockQuantity = productDto.StockQuantity
             };
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
+            
+            var createdProduct = await _productRepository.AddProductAsync(product); // Repository metodu kullanıldı
 
-            return CreatedAtAction("GetProduct", new { id = product.Id }, product);
+            return CreatedAtAction(nameof(GetProduct), new { id = createdProduct.Id }, createdProduct);
         }
         
         // PUT: api/Product/5
-        [HttpPut]
-        public async Task<IActionResult> PutProduct(Product product)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutProduct(int id, CreateProductDto productDto)
         {
+            if (id != productDto.Id) // (Bu kontrolü DTO'ya Id ekleyerek yapmıştık)
+            {
+                 return BadRequest("ID uyuşmazlığı.");
+            }
 
-            var existingProduct = await _context.Products.FindAsync(product.Id);
-            if (existingProduct == null)
+            var productToUpdate = await _productRepository.GetProductByIdAsync(id);
+            if (productToUpdate == null)
             {
                 return NotFound();
             }
 
-            existingProduct.Name = product.Name;
-            existingProduct.Price = product.Price;
-            existingProduct.StockQuantity = product.StockQuantity;
+            // DTO'dan gelen veriler ile var olan nesneyi güncelliyoruz
+            productToUpdate.Name = productDto.Name;
+            productToUpdate.Price = productDto.Price;
+            productToUpdate.StockQuantity = productDto.StockQuantity;
 
-            _context.Entry(existingProduct).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
-
+            // Güncelleme için Repository metodu kullanıldı
+            await _productRepository.UpdateProductAsync(productToUpdate); 
+            
             return NoContent();
         }
-    
+        
         // DELETE: api/Product/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
-            {
-                return NotFound();
-            }
+             var exists = await _productRepository.ExistsAsync(id);
+             if (!exists)
+             {
+                 return NotFound();
+             }
 
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+             await _productRepository.DeleteProductAsync(id); // Repository metodu kullanıldı
+             return NoContent();
         }
-    }   
+    }   
 }
