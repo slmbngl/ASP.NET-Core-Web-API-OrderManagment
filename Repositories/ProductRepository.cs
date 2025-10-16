@@ -49,7 +49,7 @@ namespace OrderManagementApi.Repositories
 
         }
 
-                public async Task<bool> ExistsAsync(int id)
+        public async Task<bool> ExistsAsync(int id)
         {
             return await _context.Products.AnyAsync(p => p.Id == id);
         }

@@ -12,6 +12,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 // **********************************************
 builder.Services.AddScoped<IProductRepository, ProductRepository>(); 
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>(); 
 
 // Diğer servisler (Controller'lar, Swagger vb.)
 builder.Services.AddControllers();

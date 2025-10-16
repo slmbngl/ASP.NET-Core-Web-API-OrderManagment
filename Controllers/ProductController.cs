@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using OrderManagementApi.Interfaces; // IProductRepository'yi kullanmak için
+using OrderManagementApi.Interfaces; 
 using OrderManagementApi.Models;
 using OrderManagementApi.DTOs;
-using Microsoft.EntityFrameworkCore; // Hala bazı yerlerde kullanılabilir ama çoğunu repo'ya taşıdık
 
 namespace OrderManagementApi.Controllers
 {
@@ -10,10 +9,8 @@ namespace OrderManagementApi.Controllers
     [ApiController]
     public class ProductController : ControllerBase
     {
-        // AppDbContext yerine Repository arayüzünü kullanıyoruz!
         private readonly IProductRepository _productRepository; 
         
-        // Constructor'da Repository'i Dependency Injection ile alıyoruz
         public ProductController(IProductRepository productRepository)
         {
             _productRepository = productRepository;
@@ -23,14 +20,14 @@ namespace OrderManagementApi.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
         {
-            return Ok(await _productRepository.GetAllProductsAsync()); // Repository metodu kullanıldı
+            return Ok(await _productRepository.GetAllProductsAsync()); 
         }
         
         // GET: api/Product/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Product>> GetProduct(int id)
         {
-            var product = await _productRepository.GetProductByIdAsync(id); // Repository metodu kullanıldı
+            var product = await _productRepository.GetProductByIdAsync(id); 
             if (product == null)
             {
                 return NotFound();
@@ -49,7 +46,7 @@ namespace OrderManagementApi.Controllers
                 StockQuantity = productDto.StockQuantity
             };
             
-            var createdProduct = await _productRepository.AddProductAsync(product); // Repository metodu kullanıldı
+            var createdProduct = await _productRepository.AddProductAsync(product); 
 
             return CreatedAtAction(nameof(GetProduct), new { id = createdProduct.Id }, createdProduct);
         }
@@ -58,7 +55,7 @@ namespace OrderManagementApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutProduct(int id, CreateProductDto productDto)
         {
-            if (id != productDto.Id) // (Bu kontrolü DTO'ya Id ekleyerek yapmıştık)
+            if (id != productDto.Id)
             {
                  return BadRequest("ID uyuşmazlığı.");
             }
@@ -69,12 +66,12 @@ namespace OrderManagementApi.Controllers
                 return NotFound();
             }
 
-            // DTO'dan gelen veriler ile var olan nesneyi güncelliyoruz
+            
             productToUpdate.Name = productDto.Name;
             productToUpdate.Price = productDto.Price;
             productToUpdate.StockQuantity = productDto.StockQuantity;
 
-            // Güncelleme için Repository metodu kullanıldı
+            
             await _productRepository.UpdateProductAsync(productToUpdate); 
             
             return NoContent();
@@ -90,7 +87,7 @@ namespace OrderManagementApi.Controllers
                  return NotFound();
              }
 
-             await _productRepository.DeleteProductAsync(id); // Repository metodu kullanıldı
+             await _productRepository.DeleteProductAsync(id); 
              return NoContent();
         }
     }   

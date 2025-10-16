@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using OrderManagementApi.Data;
 using OrderManagementApi.Models;
 using OrderManagementApi.DTOs;
+using OrderManagementApi.Interfaces;
 
 namespace OrderManagementApi.Controllers
 {
@@ -10,12 +9,12 @@ namespace OrderManagementApi.Controllers
     [ApiController]
     public class CustomersController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly ICustomerRepository _customerRepository;
 
-        // take DbContext via Dependency Injection
-        public CustomersController(AppDbContext context)
+
+        public CustomersController(ICustomerRepository customerRepository)
         {
-            _context = context;
+            _customerRepository = customerRepository;
         }
 
         // GET: api/Customers
@@ -24,7 +23,7 @@ namespace OrderManagementApi.Controllers
         public async Task<ActionResult<IEnumerable<Customer>>> GetCustomers()
         {
             // Veritabanından Customer tablosundaki tüm kayıtları asenkron olarak çeker.
-            return await _context.Customers.ToListAsync();
+            return Ok(await _customerRepository.GetAllCustomersAsync());
         }
 
         // GET: api/Customers/5
@@ -33,16 +32,13 @@ namespace OrderManagementApi.Controllers
         public async Task<ActionResult<Customer>> GetCustomer(int id)
         {
             // Find the customer by ID.
-            var customer = await _context.Customers.FindAsync(id);
-
+            var customer = await _customerRepository.GetCustomerByIdAsync(id);
             if (customer == null)
             {
-                // if not found, return 404 Not Found.
                 return NotFound();
             }
-
-            // If found, return 200 OK with the customer.
             return customer;
+            
         }
 
         // POST: api/Customers
@@ -57,13 +53,11 @@ namespace OrderManagementApi.Controllers
                 LastName = customerDto.LastName,
                 Email = customerDto.Email
             };
-            // add the new customer to the DbContext.
-            _context.Customers.Add(customer);
-            // Save changes to the database.
-            await _context.SaveChangesAsync();
+            var createdCustomer = await _customerRepository.AddCustomerAsync(customer); // Repository metodu kullanıldı
+
 
             // Return the URL of the created resource (GetCustomer method) (201 Created).
-            return CreatedAtAction(nameof(GetCustomer), new { id = customer.Id }, customer);
+            return CreatedAtAction(nameof(GetCustomer), new { id = createdCustomer.Id }, createdCustomer);
         }
 
         // DELETE: api/Customers
@@ -71,20 +65,13 @@ namespace OrderManagementApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCustomer(int id)
         {
-            // Find the customer by ID.
-            var customer = await _context.Customers.FindAsync(id);
-            if (customer == null)
-            {
-                // if not found, return 404 Not Found.
-                return NotFound();
-            }
+            var exists = await _customerRepository.ExistsAsync(id);
+            if (!exists)
+             {
+                 return NotFound();
+             }
 
-            // Remove the customer from the DbContext.
-            _context.Customers.Remove(customer);
-            // Save changes to the database.
-            await _context.SaveChangesAsync();
-
-            // Return 204 No Content after successful deletion.
+            await _customerRepository.DeleteCustomerAsync(id);
             return NoContent();
         }
     }
