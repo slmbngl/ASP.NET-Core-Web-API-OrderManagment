@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderManagementApi.Data;
 using OrderManagementApi.Interfaces;
+using OrderManagementApi.Models;
 using OrderManagementApi.Repositories;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // **********************************************
 builder.Services.AddScoped<IProductRepository, ProductRepository>(); 
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>(); 
+builder.Services.AddScoped<IOrderRepository, OrderRepository>(); 
 
 // Diğer servisler (Controller'lar, Swagger vb.)
 builder.Services.AddControllers();

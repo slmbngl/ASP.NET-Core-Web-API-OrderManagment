@@ -8,7 +8,7 @@ namespace OrderManagementApi.Models
         public int Id { get; set; }
         public DateTime OrderDate { get; set; } = DateTime.Now;
         public decimal TotalAmount { get; set; }
-        public string Status { get; set; } = "Pending"; // Örn: Pending, Shipped, Delivered
+        public string Status { get; set; } = "Pending"; // Örn: Pending, Shipped, Delivered, Cancelled
 
         // İlişkiler
         public int CustomerId { get; set; }
