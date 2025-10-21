@@ -15,7 +15,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IProductRepository, ProductRepository>(); 
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>(); 
 builder.Services.AddScoped<IOrderRepository, OrderRepository>(); 
-
+builder.Services.AddScoped<IOrderItemRepository, OrderItemRepository>();
 // Diğer servisler (Controller'lar, Swagger vb.)
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
