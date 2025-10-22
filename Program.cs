@@ -1,10 +1,54 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OrderManagementApi.Data;
 using OrderManagementApi.Interfaces;
 using OrderManagementApi.Models;
 using OrderManagementApi.Repositories;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
+
+// **********************************************
+// 2. JWT DOĞRULAMAYI EKLEME (Authentication)
+// **********************************************
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JwtSettings:Secret not found.");
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidAudience = jwtSettings["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+    };
+
+});
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // **********************************************
+    // YENİ EKLENEN/GÜNCELLENEN PAROLA AYARLARI
+    // **********************************************
+    options.Password.RequireDigit = false;            // Rakam (0-9) gereksinimini kaldır
+    options.Password.RequireLowercase = false;        // Küçük harf gereksinimini kaldır (isteğe bağlı)
+    options.Password.RequireUppercase = false;        // Büyük harf (A-Z) gereksinimini kaldır
+    options.Password.RequireNonAlphanumeric = false;  // Sembol (!, @, # vb.) gereksinimini kaldır
+    options.Password.RequiredLength = 6;              // Minimum karakter sayısını belirle (6 önerilir)
+    options.Password.RequiredUniqueChars = 1;         // Tekrarsız karakter sayısını belirle
+    // **********************************************
+})
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
 // **********************************************
 // EF Core ve MSSQL Hizmetini Ekleme
 // **********************************************
@@ -12,9 +56,9 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 // **********************************************
-builder.Services.AddScoped<IProductRepository, ProductRepository>(); 
-builder.Services.AddScoped<ICustomerRepository, CustomerRepository>(); 
-builder.Services.AddScoped<IOrderRepository, OrderRepository>(); 
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderItemRepository, OrderItemRepository>();
 // Diğer servisler (Controller'lar, Swagger vb.)
 builder.Services.AddControllers();
