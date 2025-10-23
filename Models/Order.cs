@@ -12,7 +12,9 @@ namespace OrderManagementApi.Models
 
         // İlişkiler
         public int CustomerId { get; set; }
-        public Customer Customer { get; set; }
-        public ICollection<OrderItem> OrderItems { get; set; }
+        public Customer Customer { get; set; } = default!;
+
+        // Bire-çok ilişki: Bir siparişin birden çok kalemi vardır.
+        public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }
 }

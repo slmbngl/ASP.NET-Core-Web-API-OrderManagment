@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderManagementApi.Data;
 using OrderManagementApi.Interfaces;
 using OrderManagementApi.Models;
-using OrderManagementApi.DTOs; 
+using OrderManagementApi.DTOs;
 
 namespace OrderManagementApi.Repositories
 {
@@ -15,33 +15,33 @@ namespace OrderManagementApi.Repositories
             _context = context;
         }
 
-        // --- OKUMA METOTLARI (Aynı Kalır) ---
         public async Task<IEnumerable<Order>> GetAllOrdersAsync()
         {
-            return await _context.Orders.ToListAsync();
+            return await _context.Orders
+                                 .Include(o => o.Customer)
+                                 .Include(o => o.OrderItems)
+                                 .ThenInclude(oi => oi.Product)
+                                 .ToListAsync();
         }
 
         public async Task<Order?> GetOrderByIdAsync(int id)
         {
             return await _context.Orders
-
+                                 .Include(o => o.Customer) 
+                                 .Include(o => o.OrderItems) 
+                                 .ThenInclude(oi => oi.Product) 
                                  .FirstOrDefaultAsync(o => o.Id == id);
         }
 
-        public async Task<bool> ExistsAsync(int id)
-        {
-            return await _context.Orders.AnyAsync(o => o.Id == id);
-        }
+        public async Task<bool> ExistsAsync(int id) => await _context.Orders.AnyAsync(o => o.Id == id);
 
-        // --- KARMAŞIK YAZMA METOTLARI ---
 
         public async Task<Order> CreateOrderAsync(CreateOrderDto orderDto)
         {
-            // 1. Müşteri Kontrolü (Doğrudan DbContext üzerinden)
-            var customerExists = await _context.Customers.AnyAsync(c => c.Id == orderDto.CustomerId);
-            if (!customerExists)
+            // 1. Müşteriyi çek (İlişkilendirme için)
+            var customer = await _context.Customers.FindAsync(orderDto.CustomerId);
+            if (customer == null)
             {
-                // İş mantığı hatalarını fırlatıyoruz, Controller bunu yakalayıp BadRequest döndürecek.
                 throw new ArgumentException("Geçersiz Müşteri ID'si.");
             }
 
@@ -67,12 +67,12 @@ namespace OrderManagementApi.Repositories
                 {
                     ProductId = itemDto.ProductId,
                     Quantity = itemDto.Quantity,
-                    UnitPrice = product.Price
+                    UnitPrice = product.Price // DTO'daki atama düzeltildi
                 };
                 orderItems.Add(orderItem);
                 totalAmount += orderItem.UnitPrice * orderItem.Quantity;
 
-                // 4. Stokları Düşür (Change Tracker'a kaydolur)
+                // 4. Stokları Düşür 
                 product.StockQuantity -= itemDto.Quantity;
             }
 
@@ -80,28 +80,29 @@ namespace OrderManagementApi.Repositories
             var order = new Order
             {
                 CustomerId = orderDto.CustomerId,
+                Customer = customer, // KRİTİK EŞLEŞTİRME
                 OrderItems = orderItems,
                 TotalAmount = totalAmount,
-                Status = "Pending"
+                Status = "pending"
             };
 
-            // 6. Kaydetme İşlemi (Tüm değişiklikler tek bir Transaction'da)
+            // 6. Kaydetme İşlemi (Transaction)
             _context.Orders.Add(order);
-            await _context.SaveChangesAsync(); // Stoklar ve Sipariş burada aynı anda kaydedilir.
+            await _context.SaveChangesAsync(); 
 
-            return order;
+            // 7. İlişkili verilerle birlikte yeniden çekme (Controller dönüşümü için)
+            var createdOrderWithRelations = await GetOrderByIdAsync(order.Id);
+
+            return createdOrderWithRelations!;
         }
 
-        // Basit Update Metodu (Güncelleme için DTO'lar kullanılmadığı varsayımıyla)
         public async Task UpdateOrderAsync(int id, string newStatus)
         {
-            // YENİ DURUMU KÜÇÜK HARFE ÇEVİRİYORUZ (Tutarlılık için)
             string normalizedNewStatus = newStatus.ToLower();
 
-            // 1. Siparişi OrderItems ve Product bilgisiyle birlikte çek (Include kullanarak!)
             var orderToUpdate = await _context.Orders
-                                                .Include(o => o.OrderItems) // Kalemleri yükle
-                                                .ThenInclude(oi => oi.Product) // Kalemlerin ürünlerini yükle
+                                                .Include(o => o.OrderItems)
+                                                .ThenInclude(oi => oi.Product)
                                                 .FirstOrDefaultAsync(o => o.Id == id);
 
             if (orderToUpdate == null)
@@ -109,60 +110,43 @@ namespace OrderManagementApi.Repositories
                 throw new KeyNotFoundException($"ID {id} ile sipariş bulunamadı.");
             }
 
-            // 2. İptal Kontrolü ve Stok İadesi İş Mantığı
-            // Sadece mevcut durum "cancelled" değilse VE yeni durum "cancelled" ise stok iadesi yap.
+            // Stok iadesi mantığı
             if (orderToUpdate.Status != "cancelled" && normalizedNewStatus == "cancelled")
             {
-                // Stok iadesi yap: Her bir sipariş kalemi için döngüye gir
                 foreach (var item in orderToUpdate.OrderItems)
                 {
-                    // Product nesnesi zaten Include ile yüklendiği için direkt kullanabiliriz.
-                    var product = item.Product;
-
-                    // Eğer ürün bilgisi yüklendiyse ve stok miktarını güncelleyebiliriz
+                    var product = item.Product; 
                     if (product != null)
                     {
                         product.StockQuantity += item.Quantity;
                     }
-                    // NOT: EF Core, product nesnesindeki bu değişikliği otomatik takip eder.
                 }
             }
 
-            // 3. Sipariş Durumunu Güncelleme
             orderToUpdate.Status = normalizedNewStatus;
-
-            // 4. Değişiklikleri Kaydetme
-            // Bu tek SaveChanges, hem sipariş durumunu hem de stok güncellemelerini DB'ye yansıtır.
             await _context.SaveChangesAsync();
         }
 
-        // DELETE metodu: Stok iadesi iş mantığını içerir
         public async Task DeleteOrderWithStockReturnAsync(int id)
         {
-            // Önce Order'ı ve kalemlerini çek (Include ile çekilmiş olmalı)
             var order = await GetOrderByIdAsync(id);
             if (order == null)
             {
+                throw new KeyNotFoundException($"ID {id} ile sipariş bulunamadı.");
             }
 
             // Stok İadesi İşlemi
             foreach (var item in order.OrderItems)
             {
-                // Product'ı çekip, EF'in takibine al
                 var product = await _context.Products.FindAsync(item.ProductId);
                 if (product != null)
                 {
-                    product.StockQuantity += item.Quantity; // Stok iade edildi
-                                                            // Kaydetmeye gerek yok, alttaki SaveChanges hepsini halledecek
+                    product.StockQuantity += item.Quantity;
                 }
             }
 
-            // Siparişi sil
             _context.Orders.Remove(order);
-
-            // Tüm değişiklikleri tek seferde kaydet (Sipariş silme + Stok artırma)
             await _context.SaveChangesAsync();
         }
-
     }
 }

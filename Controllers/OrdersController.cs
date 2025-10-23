@@ -1,30 +1,49 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OrderManagementApi.DTOs;
 using OrderManagementApi.Interfaces;
 using OrderManagementApi.Models;
 
-namespace OrderManagementApi.Controllers
-{
+namespace OrderManagementApi.Controller
+{   [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class OrdersController : ControllerBase
     {
         private readonly IOrderRepository _orderRepository;
 
-        // Constructor'da sadece Order Repository'yi alıyoruz
         public OrdersController(IOrderRepository orderRepository)
         {
             _orderRepository = orderRepository;
         }
 
-        // GET: api/Orders
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Order>>> GetOrders()
         {
-            return Ok(await _orderRepository.GetAllOrdersAsync());
+           var orders = await _orderRepository.GetAllOrdersAsync();
+    
+    // NOT: Bu DTO dönüşümünü burada veya Repository'de yapmalısınız.
+    // Şimdilik Controller'da yapalım:
+    var dtos = orders.Select(o => new OrderResponseDto 
+    {
+        Id = o.Id,
+        OrderDate = o.OrderDate,
+        TotalAmount = o.TotalAmount,
+        Status = o.Status,
+        CustomerId = o.CustomerId,
+        // İlişkileri güvenli bir şekilde aktar
+        CustomerFullName = o.Customer?.FirstName + " " + o.Customer?.LastName, 
+        Items = o.OrderItems.Select(oi => new OrderItemResponseDto {
+             ProductId = oi.ProductId,
+             ProductName = oi.Product?.Name ?? "Bilinmiyor",
+             Quantity = oi.Quantity,
+             UnitPriceSnapshot = oi.UnitPrice
+        }).ToList()
+    }).ToList();
+
+    return Ok(dtos);
         }
 
-        // GET: api/Orders/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Order>> GetOrder(int id)
         {
@@ -33,17 +52,18 @@ namespace OrderManagementApi.Controllers
             {
                 return NotFound();
             }
-            return Ok(order);
+            // NOT: Eğer GetOrderByIdAsync DTO dönüşümü yapıyorsa, burası da DTO döndürmelidir.
+            return Ok(order);
         }
 
-        // POST: api/Orders (Temizlenmiş)
         [HttpPost]
         public async Task<ActionResult<OrderResponseDto>> PostOrder([FromBody] CreateOrderDto orderDto)
         {
             try
             {
-                // Tüm iş mantığı artık Repository içinde. Controller sadece çağırır.
                 var createdOrder = await _orderRepository.CreateOrderAsync(orderDto);
+
+                // **DTO DÖNÜŞÜMÜ (Artık güvenli çalışmalı)**
                 var responseDto = new OrderResponseDto
                 {
                     Id = createdOrder.Id,
@@ -51,60 +71,51 @@ namespace OrderManagementApi.Controllers
                     Status = createdOrder.Status,
                     TotalAmount = createdOrder.TotalAmount,
                     CustomerId = createdOrder.CustomerId,
-                    CustomerFullName = createdOrder.Customer?.FirstName + " " + createdOrder.Customer?.LastName, // Customer'ı yüklediyseniz
+                    CustomerFullName = createdOrder.Customer.FirstName + " " + createdOrder.Customer.LastName,
                     Items = createdOrder.OrderItems.Select(item => new OrderItemResponseDto
                     {
                         ProductId = item.ProductId,
-                        ProductName = item.Product.Name, // Product'ın da yüklenmiş olması gerekir
+                        ProductName = item.Product.Name,
                         Quantity = item.Quantity,
-                        UnitPriceSnapshot = item.UnitPrice
-                    }).ToList()
+                        UnitPriceSnapshot = item.UnitPrice // Modeldeki doğru alan adı kullanıldı
+                    }).ToList()
                 };
                 return CreatedAtAction(nameof(GetOrder), new { id = responseDto.Id }, responseDto);
             }
             catch (ArgumentException ex)
             {
-                // Geçersiz ID veya bulunamayan ürün
                 return BadRequest(ex.Message);
             }
             catch (InvalidOperationException ex)
             {
-                // Yetersiz stok
                 return BadRequest(ex.Message);
             }
         }
-        
+
         [HttpPut("{id}")]
-    public async Task<IActionResult> PutOrder(int id, [FromBody] UpdateOrderStatusDto statusDto)
-    {
-        try
+        public async Task<IActionResult> PutOrder(int id, [FromBody] UpdateOrderStatusDto statusDto)
         {
-            // Tüm iş mantığını Repository'ye devret (Bu basit hali Repository'de)
-            await _orderRepository.UpdateOrderAsync(id, statusDto.Status);
-            
-            // Başarılı güncelleme
-            return NoContent(); 
+            try
+            {
+                await _orderRepository.UpdateOrderAsync(id, statusDto.Status);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-        catch (Exception ex)
-        {
-            // Ek iş mantığı hatalarını da buradan yakalayabiliriz (Örn: Geçersiz durum)
-            // Şu anki basit Repository'de bu yok, ama mantık budur.
-            return BadRequest(ex.Message); 
-        }
-    }
 
 
-        // DELETE: api/Orders/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteOrder(int id)
         {
             try
             {
-                // Silme ve stok iadesi işi Repository'de
                 await _orderRepository.DeleteOrderWithStockReturnAsync(id);
                 return NoContent();
             }
