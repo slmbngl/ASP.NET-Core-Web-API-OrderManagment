@@ -6,6 +6,7 @@ using OrderManagementApi.Models;
 
 namespace OrderManagementApi.Controller
 {   [Authorize]
+
     [Route("api/[controller]")]
     [ApiController]
     public class OrdersController : ControllerBase
