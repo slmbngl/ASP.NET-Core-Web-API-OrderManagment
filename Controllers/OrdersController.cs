@@ -1,11 +1,14 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OrderManagementApi.DTOs;
 using OrderManagementApi.Interfaces;
 using OrderManagementApi.Models;
+using OrderManagementApi.Repositories;
 
 namespace OrderManagementApi.Controller
-{   [Authorize]
+{
+    [Authorize]
 
     [Route("api/[controller]")]
     [ApiController]
@@ -19,42 +22,106 @@ namespace OrderManagementApi.Controller
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Order>>> GetOrders()
+        public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetOrders()
         {
-           var orders = await _orderRepository.GetAllOrdersAsync();
-    
-    // NOT: Bu DTO dönüşümünü burada veya Repository'de yapmalısınız.
-    // Şimdilik Controller'da yapalım:
-    var dtos = orders.Select(o => new OrderResponseDto 
-    {
-        Id = o.Id,
-        OrderDate = o.OrderDate,
-        TotalAmount = o.TotalAmount,
-        Status = o.Status,
-        CustomerId = o.CustomerId,
-        // İlişkileri güvenli bir şekilde aktar
-        CustomerFullName = o.Customer?.FirstName + " " + o.Customer?.LastName, 
-        Items = o.OrderItems.Select(oi => new OrderItemResponseDto {
-             ProductId = oi.ProductId,
-             ProductName = oi.Product?.Name ?? "Bilinmiyor",
-             Quantity = oi.Quantity,
-             UnitPriceSnapshot = oi.UnitPrice
-        }).ToList()
-    }).ToList();
+            // 1. Giriş Yapan Kullanıcının ApplicationUserId'sini al
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    return Ok(dtos);
+            if (string.IsNullOrEmpty(userId))
+            {
+                // [Authorize] etiketi olduğu için bu kod parçasına erişim olmaz, 
+                // ancak ek güvenlik için kontrol etmek iyidir.
+                return Unauthorized();
+            }
+
+            // 2. Repository'den sadece ilgili kullanıcının siparişlerini iste
+            var jwt = await _orderRepository.GetOrdersByApplicationUserIdAsync(userId);
+
+            if (jwt == true)
+            {
+                var orders = await _orderRepository.GetAllOrdersAsync();
+                var dtos = orders.Select(o => new OrderResponseDto
+
+                {
+
+                    Id = o.Id,
+
+                    OrderDate = o.OrderDate,
+
+                    TotalAmount = o.TotalAmount,
+
+                    Status = o.Status,
+
+                    CustomerId = o.CustomerId,
+
+                    // İlişkileri güvenli bir şekilde aktar
+
+                    CustomerFullName = o.Customer?.FirstName + " " + o.Customer?.LastName,
+
+                    Items = o.OrderItems.Select(oi => new OrderItemResponseDto
+
+                    {
+
+                        ProductId = oi.ProductId,
+
+                        ProductName = oi.Product?.Name ?? "Bilinmiyor",
+
+                        Quantity = oi.Quantity,
+
+                        UnitPriceSnapshot = oi.UnitPrice
+
+                    }).ToList()
+
+                }).ToList();
+                return Ok(dtos);
+            }
+            else
+            {
+                return NoContent();
+            }
+
+
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Order>> GetOrder(int id)
         {
-            var order = await _orderRepository.GetOrderByIdAsync(id);
+            // 1. Giriş Yapan Kullanıcının ApplicationUserId'sini al
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                // [Authorize] etiketi olduğu için bu kod parçasına erişim olmaz, 
+                // ancak ek güvenlik için kontrol etmek iyidir.
+                return Unauthorized();
+            }
+
+            // 2. Repository'den sadece ilgili kullanıcının siparişlerini iste
+            var jwt = await _orderRepository.GetOrdersByApplicationUserIdAsync(userId);
+            if (jwt)
+            {
+               var order = await _orderRepository.GetOrderByIdAsync(id);
             if (order == null)
             {
                 return NotFound();
             }
-            // NOT: Eğer GetOrderByIdAsync DTO dönüşümü yapıyorsa, burası da DTO döndürmelidir.
-            return Ok(order);
+            var dto = new OrderResponseDto
+                {
+                    Id = order.Id,
+                    OrderDate = order.OrderDate,
+                    TotalAmount = order.TotalAmount,
+                    CustomerFullName = $"{order.Customer.FirstName} {order.Customer.LastName}",
+                    Items = order.OrderItems.Select(oi => new OrderItemResponseDto
+                    {
+                        ProductId = oi.ProductId,
+                        ProductName = oi.Product.Name,
+                        Quantity = oi.Quantity,
+                        UnitPriceSnapshot = oi.UnitPrice
+                    }).ToList()
+                };
+            return Ok(dto); 
+            }
+            return NotFound();
         }
 
         [HttpPost]

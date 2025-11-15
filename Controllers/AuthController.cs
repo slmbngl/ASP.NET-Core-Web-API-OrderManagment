@@ -32,7 +32,7 @@ namespace OrderManagementApi.Controllers
             _configuration = configuration;
             _context = context;
         }
-        
+
         // ... (RegisterRequestDto ve LoginRequestDto sınıflarını DTOs klasöründe tanımlayın) ...
 
         // Token Üretme Metodu
@@ -66,38 +66,38 @@ namespace OrderManagementApi.Controllers
 
         // POST: api/Auth/register
         [HttpPost("register")]
-public async Task<IActionResult> Register(RegisterRequestDto model)
-{
-    // 1. ApplicationUser Oluşturma
-    var user = new ApplicationUser 
-    { 
-        UserName = model.Email, 
-        Email = model.Email,
-        FullName = $"{model.FirstName} {model.LastName}"
-    };
-    
-    var result = await _userManager.CreateAsync(user, model.Password);
-
-    if (result.Succeeded)
-    {
-        // 2. Customer Nesnesini Oluşturma
-        var customer = new Customer
+        public async Task<IActionResult> Register(RegisterRequestDto model)
         {
-            FirstName = model.FirstName,
-            LastName = model.LastName,
-            Email = model.Email,
-            ApplicationUserId = user.Id // IdentityUser ID'sini Customer'a bağlıyoruz
-        };
-        
-        // Context'e Customer'ı ekle ve kaydet
-        _context.Customers.Add(customer); 
-        await _context.SaveChangesAsync(); 
+            // 1. ApplicationUser Oluşturma
+            var user = new ApplicationUser
+            {
+                UserName = model.Email,
+                Email = model.Email,
+                FullName = $"{model.FirstName} {model.LastName}"
+            };
 
-        return Ok(new { Message = "Kullanıcı ve Müşteri kaydı başarıyla oluşturuldu." });
-    }
+            var result = await _userManager.CreateAsync(user, model.Password);
 
-    return BadRequest(result.Errors);
-}
+            if (result.Succeeded)
+            {
+                // 2. Customer Nesnesini Oluşturma
+                var customer = new Customer
+                {
+                    FirstName = model.FirstName,
+                    LastName = model.LastName,
+                    Email = model.Email,
+                    ApplicationUserId = user.Id // IdentityUser ID'sini Customer'a bağlıyoruz
+                };
+
+                // Context'e Customer'ı ekle ve kaydet
+                _context.Customers.Add(customer);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { Message = "Kullanıcı ve Müşteri kaydı başarıyla oluşturuldu." });
+            }
+
+            return BadRequest(result.Errors);
+        }
 
         // POST: api/Auth/login
         [HttpPost("login")]

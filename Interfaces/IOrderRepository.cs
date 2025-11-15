@@ -11,5 +11,6 @@ namespace OrderManagementApi.Interfaces
         Task UpdateOrderAsync(int id, string newStatus);
         Task DeleteOrderWithStockReturnAsync(int id);
          Task<bool> ExistsAsync(int id);
+        Task<bool> GetOrdersByApplicationUserIdAsync(string userId);
     }
 }

@@ -16,10 +16,20 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // 🔹 2. Identity servisleri (UserManager, SignInManager vs. buradan gelir)
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // **********************************************
+    // KRİTİK KONTROL NOKTASI
+    // **********************************************
+    options.Password.RequireDigit = false;            // Numara gereksinimini kaldırır
+    options.Password.RequireUppercase = false;        // Büyük harf gereksinimini kaldırır
+    options.Password.RequireNonAlphanumeric = false;  // Sembol gereksinimini kaldırır
+    options.Password.RequiredLength = 6;              // Minimum 6 karakter
+    options.Password.RequireLowercase = false;        // Küçük harf gereksinimini kaldırır
+    // **********************************************
+})
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
-
 // 🔹 3. JWT ayarları
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Secret"]);

@@ -27,9 +27,9 @@ namespace OrderManagementApi.Repositories
         public async Task<Order?> GetOrderByIdAsync(int id)
         {
             return await _context.Orders
-                                 .Include(o => o.Customer) 
-                                 .Include(o => o.OrderItems) 
-                                 .ThenInclude(oi => oi.Product) 
+                                 .Include(o => o.Customer)
+                                 .Include(o => o.OrderItems)
+                                 .ThenInclude(oi => oi.Product)
                                  .FirstOrDefaultAsync(o => o.Id == id);
         }
 
@@ -88,7 +88,7 @@ namespace OrderManagementApi.Repositories
 
             // 6. Kaydetme İşlemi (Transaction)
             _context.Orders.Add(order);
-            await _context.SaveChangesAsync(); 
+            await _context.SaveChangesAsync();
 
             // 7. İlişkili verilerle birlikte yeniden çekme (Controller dönüşümü için)
             var createdOrderWithRelations = await GetOrderByIdAsync(order.Id);
@@ -115,7 +115,7 @@ namespace OrderManagementApi.Repositories
             {
                 foreach (var item in orderToUpdate.OrderItems)
                 {
-                    var product = item.Product; 
+                    var product = item.Product;
                     if (product != null)
                     {
                         product.StockQuantity += item.Quantity;
@@ -147,6 +147,25 @@ namespace OrderManagementApi.Repositories
 
             _context.Orders.Remove(order);
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> GetOrdersByApplicationUserIdAsync(string applicationUserId)
+        {
+            // 1. Customer ID'sini, ApplicationUserId'den bul
+            var customer = await _context.Customers
+                                         .FirstOrDefaultAsync(c => c.ApplicationUserId == applicationUserId);
+
+            if (customer == null)
+            {
+                // Kullanıcının Customer kaydı yoksa boş liste döndür
+                return false;
+            }
+
+            // 2. Customer ID'ye göre siparişleri filtrele ve ilişkili verileri yükle
+            var hasOrders = await _context.Orders
+                                  .AnyAsync(o => o.CustomerId == customer.Id);
+
+            return hasOrders;
         }
     }
 }

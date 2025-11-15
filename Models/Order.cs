@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace OrderManagementApi.Models
 {
@@ -15,6 +16,7 @@ namespace OrderManagementApi.Models
         public Customer Customer { get; set; } = default!;
 
         // Bire-çok ilişki: Bir siparişin birden çok kalemi vardır.
+        [JsonIgnore]
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }
 }
