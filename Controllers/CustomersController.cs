@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using OrderManagementApi.Models;
 using OrderManagementApi.DTOs;
 using OrderManagementApi.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace OrderManagementApi.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")] // Endpoint: /api/Customers
     [ApiController]
     public class CustomersController : ControllerBase

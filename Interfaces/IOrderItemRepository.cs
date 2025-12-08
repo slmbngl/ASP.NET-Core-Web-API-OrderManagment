@@ -7,5 +7,6 @@ namespace OrderManagementApi.Interfaces
         Task<IEnumerable<OrderItem>> GetItemsByOrderIdAsync(int orderId);
         Task<IEnumerable<OrderItem>> GetOrderIdAsync();
         Task<OrderItem?> GetItemByIdAsync(int itemId);
+        Task<IEnumerable<OrderItem>> GetItemsByApplicationUserIdAsync(string applicationUserId);
     }
 }

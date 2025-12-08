@@ -89,6 +89,10 @@ builder.Services.AddControllers();
 
 builder.Services.AddAuthorization();
 
+//UserId'yi global şekilde almak için gereken servis katmanı
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IUserContextService, UserContextService>();
+
 var app = builder.Build();
 
 // 🔹 5. Middleware sırası

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using OrderManagementApi.Models; // ApplicationUser için
 
 public class Customer
@@ -14,5 +15,6 @@ public class Customer
     public ApplicationUser ApplicationUser { get; set; } = default!; 
 
     // İlişki (Bir Müşteri birden fazla Sipariş verebilir)
+    [JsonIgnore]
     public ICollection<Order> Orders { get; set; } = new List<Order>();
 }

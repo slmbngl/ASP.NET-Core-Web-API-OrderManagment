@@ -19,7 +19,6 @@ namespace OrderManagementApi.Repositories
         }
         public async Task<IEnumerable<OrderItem>> GetItemsByOrderIdAsync(int orderId)
         {
-            // Belirli bir siparişe ait tüm kalemleri Product bilgisiyle birlikte çeker
             return await _context.OrderItems
                                  .Where(item => item.OrderId == orderId)
                                  .Include(item => item.Product)
@@ -27,10 +26,26 @@ namespace OrderManagementApi.Repositories
         }
         public async Task<OrderItem?> GetItemByIdAsync(int itemId)
         {
-            // Belirli bir kalemi Product bilgisiyle birlikte çeker
-             return await _context.OrderItems
-                                  .Include(item => item.Product)
-                                  .FirstOrDefaultAsync(item => item.Id == itemId);
+            return await _context.OrderItems
+                                 .Include(item => item.Product)
+                                 .FirstOrDefaultAsync(item => item.Id == itemId);
+        }
+        public async Task<IEnumerable<OrderItem>> GetItemsByApplicationUserIdAsync(string applicationUserId)
+        {
+            var customer = await _context.Customers.FirstOrDefaultAsync(c => c.ApplicationUserId == applicationUserId);
+            if (customer == null) return new List<OrderItem>();
+
+            var orderIds = await _context.Orders
+                                            .Where(o => o.CustomerId == customer.Id)
+                                            .Select(o => o.Id)
+                                            .ToListAsync();
+
+            if (!orderIds.Any())
+                return new List<OrderItem>();
+            return await _context.OrderItems
+                                     .Where(oi => orderIds.Contains(oi.OrderId))
+                                     .ToListAsync();
+
         }
     }
 }

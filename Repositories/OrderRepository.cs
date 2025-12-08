@@ -9,10 +9,12 @@ namespace OrderManagementApi.Repositories
     public class OrderRepository : IOrderRepository
     {
         private readonly AppDbContext _context;
-
-        public OrderRepository(AppDbContext context)
+        private readonly IUserContextService _userContext;
+        public OrderRepository(AppDbContext context, IUserContextService userContext)
         {
+
             _context = context;
+            _userContext = userContext;
         }
 
         public async Task<IEnumerable<Order>> GetAllOrdersAsync()
@@ -24,13 +26,21 @@ namespace OrderManagementApi.Repositories
                                  .ToListAsync();
         }
 
-        public async Task<Order?> GetOrderByIdAsync(int id)
+        public async Task<Order?> GetOrderByIdAsync(int orderId)
         {
+            var userId = _userContext.UserId;
+
+            var customer = await _context.Customers
+                                         .FirstOrDefaultAsync(c => c.ApplicationUserId == userId);
+
+            if (customer == null)
+                return null;
+
             return await _context.Orders
                                  .Include(o => o.Customer)
                                  .Include(o => o.OrderItems)
                                  .ThenInclude(oi => oi.Product)
-                                 .FirstOrDefaultAsync(o => o.Id == id);
+                                 .FirstOrDefaultAsync(o => o.Id == orderId && o.CustomerId == customer.Id);
         }
 
         public async Task<bool> ExistsAsync(int id) => await _context.Orders.AnyAsync(o => o.Id == id);
@@ -38,14 +48,15 @@ namespace OrderManagementApi.Repositories
 
         public async Task<Order> CreateOrderAsync(CreateOrderDto orderDto)
         {
-            // 1. Müşteriyi çek (İlişkilendirme için)
-            var customer = await _context.Customers.FindAsync(orderDto.CustomerId);
-            if (customer == null)
-            {
-                throw new ArgumentException("Geçersiz Müşteri ID'si.");
-            }
+            var userId = _userContext.UserId;
+            // Find the customer through ApplicationUserId
+            var customer = await _context.Customers
+                                         .FirstOrDefaultAsync(c => c.ApplicationUserId == userId);
 
-            // 2. Ürün ve Stok Kontrolleri
+            if (customer == null)
+                throw new InvalidOperationException("Bu kullanıcıya ait müşteri kaydı bulunamadı.");
+
+            // Product and Stock control are the same way
             var productIds = orderDto.Items.Select(i => i.ProductId).Distinct().ToList();
             var products = await _context.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
 
@@ -60,40 +71,36 @@ namespace OrderManagementApi.Repositories
                     throw new ArgumentException($"Ürün ID {itemDto.ProductId} bulunamadı.");
 
                 if (product.StockQuantity < itemDto.Quantity)
-                    throw new InvalidOperationException($"Ürün '{product.Name}' için yetersiz stok. Mevcut: {product.StockQuantity}");
+                    throw new InvalidOperationException(
+                        $"Ürün '{product.Name}' için yetersiz stok. Mevcut: {product.StockQuantity}");
 
-                // 3. OrderItem'ı oluştur
                 var orderItem = new OrderItem
                 {
                     ProductId = itemDto.ProductId,
                     Quantity = itemDto.Quantity,
-                    UnitPrice = product.Price // DTO'daki atama düzeltildi
+                    UnitPrice = product.Price
                 };
+
                 orderItems.Add(orderItem);
                 totalAmount += orderItem.UnitPrice * orderItem.Quantity;
 
-                // 4. Stokları Düşür 
                 product.StockQuantity -= itemDto.Quantity;
             }
 
-            // 5. Ana Sipariş Nesnesini Oluşturma
+            // Create Order
             var order = new Order
             {
-                CustomerId = orderDto.CustomerId,
-                Customer = customer, // KRİTİK EŞLEŞTİRME
+                CustomerId = customer.Id,
+                Customer = customer,
                 OrderItems = orderItems,
                 TotalAmount = totalAmount,
                 Status = "pending"
             };
 
-            // 6. Kaydetme İşlemi (Transaction)
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
-            // 7. İlişkili verilerle birlikte yeniden çekme (Controller dönüşümü için)
-            var createdOrderWithRelations = await GetOrderByIdAsync(order.Id);
-
-            return createdOrderWithRelations!;
+            return await GetOrderByIdAsync(order.Id);
         }
 
         public async Task UpdateOrderAsync(int id, string newStatus)
@@ -149,23 +156,20 @@ namespace OrderManagementApi.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public async Task<bool> GetOrdersByApplicationUserIdAsync(string applicationUserId)
+        public async Task<IEnumerable<Order>> GetOrdersByApplicationUserIdAsync()
         {
-            // 1. Customer ID'sini, ApplicationUserId'den bul
-            var customer = await _context.Customers
-                                         .FirstOrDefaultAsync(c => c.ApplicationUserId == applicationUserId);
+            // Finf Customer ID and AplicationUserId
+            var userId = _userContext.UserId;
+            var customer = await _context.Customers.FirstOrDefaultAsync(c => c.ApplicationUserId == userId);
+            if (customer == null) return new List<Order>();
 
-            if (customer == null)
-            {
-                // Kullanıcının Customer kaydı yoksa boş liste döndür
-                return false;
-            }
-
-            // 2. Customer ID'ye göre siparişleri filtrele ve ilişkili verileri yükle
-            var hasOrders = await _context.Orders
-                                  .AnyAsync(o => o.CustomerId == customer.Id);
-
-            return hasOrders;
+            // Filter orders by customer ID and load data
+            return await _context.Orders
+                         .Where(o => o.CustomerId == customer.Id)
+                         .Include(o => o.Customer)
+                         .Include(o => o.OrderItems)
+                         .ThenInclude(oi => oi.Product)
+                         .ToListAsync();
         }
     }
 }

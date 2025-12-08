@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Mvc;
 using OrderManagementApi.Interfaces;
 using OrderManagementApi.DTOs;
 using OrderManagementApi.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace OrderManagementApi.Controllers
 {
-    [Route("api/[controller]")] // Genellikle /api/OrderItems
+    [Authorize]
+    [Route("api/[controller]")]
     [ApiController]
     public class OrderItemsController : ControllerBase
     {
@@ -17,20 +20,19 @@ namespace OrderManagementApi.Controllers
         }
 
         // GET: api/OrderItems/ByOrder/5
-        // Belirli bir siparişe ait tüm kalemleri getirir
+        // Get all order's item by specific order
         [HttpGet]
         public async Task<ActionResult<IEnumerable<OrderItem>>> GetOrderItems()
         {
-            var items = await _itemRepository.GetOrderIdAsync();
-            
-            // // DTO'ya dönüştürme (Sonsuz döngüden kaçınmak için kritik)
-            // var dtos = items.Select(item => new OrderItemResponseDto
-            // {
-            //     ProductId = item.ProductId,
-            //     ProductName = item.Product?.Name ?? "Bilinmiyor", // Product nesnesi yüklendiyse adını al
-            //     Quantity = item.Quantity,
-            //     UnitPriceSnapshot = item.UnitPrice
-            // }).ToList();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            var items = await _itemRepository.GetItemsByApplicationUserIdAsync(userId);
+
+            if (!items.Any())
+                return NoContent();
 
             return Ok(items);
         }
@@ -38,8 +40,8 @@ namespace OrderManagementApi.Controllers
         public async Task<ActionResult<IEnumerable<OrderItemResponseDto>>> GetOrderItems(int orderId)
         {
             var items = await _itemRepository.GetItemsByOrderIdAsync(orderId);
-            
-            // DTO'ya dönüştürme (Sonsuz döngüden kaçınmak için kritik)
+
+            // convert to DTO
             var dtos = items.Select(item => new OrderItemResponseDto
             {
                 ProductId = item.ProductId,
@@ -52,7 +54,6 @@ namespace OrderManagementApi.Controllers
         }
 
         // GET: api/OrderItems/12
-        // Belirli bir kalemi ID'si ile getirir
         [HttpGet("{id}")]
         public async Task<ActionResult<OrderItemResponseDto>> GetOrderItem(int id)
         {
@@ -74,9 +75,5 @@ namespace OrderManagementApi.Controllers
 
             return Ok(dto);
         }
-        
-        // NOT: POST, PUT ve DELETE işlemleri, stok yönetimi ve Transaction bütünlüğü nedeniyle,
-        // YALNIZCA OrderController/OrderRepository üzerinden yapılmalıdır.
-        // Aksi takdirde stokları yönetmek çok zorlaşır.
     }
 }

@@ -5,9 +5,6 @@ namespace OrderManagementApi.DTOs
 {
     public class CreateOrderDto
     {
-        [Required]
-        public int CustomerId { get; set; }
-
         // Bire-Çok İlişki: Sipariş, bir OrderItem listesi içerir.
         [Required]
         public List<OrderItemDto> Items { get; set; } = new List<OrderItemDto>();
