@@ -100,6 +100,15 @@ namespace OrderManagementApi.Repositories
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
+
+            // Save the order and then create the OrderItems' TotalAmount   
+            foreach (var item in order.OrderItems)
+            {
+                item.TotalAmount = order.TotalAmount;
+            }
+
+            await _context.SaveChangesAsync();
+
             return await GetOrderByIdAsync(order.Id);
         }
 

@@ -13,6 +13,7 @@ namespace OrderManagementApi.Models
 
         // İlişkiler
         public int CustomerId { get; set; }
+        [JsonIgnore]
         public Customer Customer { get; set; } = default!;
 
         // Bire-çok ilişki: Bir siparişin birden çok kalemi vardır.
